@@ -313,6 +313,87 @@ class TestLogicSystem(unittest.TestCase):
     )
     self.assertEqual(repr(complex_expr), '((p ∧ q) → r)')
 
+  def test_graph_coloring(self):
+    def encode_graph_coloring(graph, num_colors):
+      expressions = []
+
+      # For each node, it must have at least one color
+      for node in graph:
+        expressions.append(
+          Expression(
+            Operator.OR,
+            tuple(Proposition(f'{node}_color_{i}') for i in range(num_colors)),
+          )
+        )
+
+      # For each node, it can't have more than one color
+      for node in graph:
+        for i in range(num_colors):
+          for j in range(i + 1, num_colors):
+            expressions.append(
+              Expression(
+                Operator.OR,
+                (
+                  Expression(Operator.NOT, (Proposition(f'{node}_color_{i}'),)),
+                  Expression(Operator.NOT, (Proposition(f'{node}_color_{j}'),)),
+                ),
+              )
+            )
+
+      # Adjacent nodes can't have the same color
+      for node, neighbors in graph.items():
+        for neighbor in neighbors:
+          for color in range(num_colors):
+            expressions.append(
+              Expression(
+                Operator.OR,
+                (
+                  Expression(
+                    Operator.NOT, (Proposition(f'{node}_color_{color}'),)
+                  ),
+                  Expression(
+                    Operator.NOT, (Proposition(f'{neighbor}_color_{color}'),)
+                  ),
+                ),
+              )
+            )
+
+      return Expression(Operator.AND, tuple(expressions))
+
+    def is_graph_colorable(graph, num_colors):
+      expr = encode_graph_coloring(graph, num_colors)
+      variables = get_variables(expr)
+
+      for values in product([False, True], repeat=len(variables)):
+        substitutions = dict(zip(variables, values))
+        if evaluate(expr, substitutions):
+          return True
+      return False
+
+    # A triangle graph (not 2-colorable, but 3-colorable)
+    triangle_graph = {'A': ['B', 'C'], 'B': ['A', 'C'], 'C': ['A', 'B']}
+    self.assertFalse(is_graph_colorable(triangle_graph, 2))
+    self.assertTrue(is_graph_colorable(triangle_graph, 3))
+
+    # A square graph (2-colorable)
+    square_graph = {
+      'A': ['B', 'D'],
+      'B': ['A', 'C'],
+      'C': ['B', 'D'],
+      'D': ['A', 'C'],
+    }
+    self.assertTrue(is_graph_colorable(square_graph, 2))
+
+    # A complete graph with 4 nodes (4-colorable, but not 3-colorable)
+    complete_graph = {
+      'A': ['B', 'C', 'D'],
+      'B': ['A', 'C', 'D'],
+      'C': ['A', 'B', 'D'],
+      'D': ['A', 'B', 'C'],
+    }
+    self.assertFalse(is_graph_colorable(complete_graph, 3))
+    self.assertTrue(is_graph_colorable(complete_graph, 4))
+
 
 if __name__ == '__main__':
   unittest.main()
