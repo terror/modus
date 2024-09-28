@@ -40,7 +40,7 @@ class Expression:
       return f"Unknown({', '.join(map(str, self.operands))})"
 
 
-def eval(
+def evaluate(
   expression: t.Union[Proposition, Expression],
   substitutions: t.Dict[str, bool] = {},
 ) -> bool:
@@ -50,13 +50,13 @@ def eval(
         return expression.value
       return substitutions.get(expression.value, False)
     case Expression(operator=Operator.AND, operands=operands):
-      return all(eval(operand, substitutions) for operand in operands)
+      return all(evaluate(operand, substitutions) for operand in operands)
     case Expression(operator=Operator.OR, operands=operands):
-      return any(eval(operand, substitutions) for operand in operands)
+      return any(evaluate(operand, substitutions) for operand in operands)
     case Expression(operator=Operator.NOT, operands=(operand,)):
-      return not eval(operand, substitutions)
+      return not evaluate(operand, substitutions)
     case Expression(operator=Operator.IMPLIES, operands=(premise, conclusion)):
-      return (not eval(premise, substitutions)) or eval(
+      return (not evaluate(premise, substitutions)) or evaluate(
         conclusion, substitutions
       )
     case _:
@@ -84,8 +84,8 @@ def is_semantic_consequence(
   for values in product([True, False], repeat=len(variables)):
     substitutions = dict(zip(variables, values))
 
-    if all(eval(premise, substitutions) for premise in premises):
-      if not eval(conclusion, substitutions):
+    if all(evaluate(premise, substitutions) for premise in premises):
+      if not evaluate(conclusion, substitutions):
         return False
 
   return True
@@ -117,7 +117,7 @@ def generate_truth_table(expr: t.Union[Proposition, Expression]) -> str:
     row = [int(substitutions[var]) for var in variables]
 
     for subexpr in subexpressions:
-      result = eval(subexpr, substitutions)
+      result = evaluate(subexpr, substitutions)
       row.append(int(result))
 
     rows.append(row)
@@ -148,32 +148,32 @@ class TestLogicSystem(unittest.TestCase):
     self.r = Proposition('r')
 
   def test_proposition_evaluation(self):
-    self.assertTrue(eval(Proposition(True)))
-    self.assertFalse(eval(Proposition(False)))
-    self.assertFalse(eval(self.p))
-    self.assertTrue(eval(self.p, {'p': True}))
+    self.assertTrue(evaluate(Proposition(True)))
+    self.assertFalse(evaluate(Proposition(False)))
+    self.assertFalse(evaluate(self.p))
+    self.assertTrue(evaluate(self.p, {'p': True}))
 
   def test_and_operator(self):
     expr = Expression(Operator.AND, (self.p, self.q))
-    self.assertFalse(eval(expr, {'p': True, 'q': False}))
-    self.assertTrue(eval(expr, {'p': True, 'q': True}))
+    self.assertFalse(evaluate(expr, {'p': True, 'q': False}))
+    self.assertTrue(evaluate(expr, {'p': True, 'q': True}))
 
   def test_or_operator(self):
     expr = Expression(Operator.OR, (self.p, self.q))
-    self.assertTrue(eval(expr, {'p': True, 'q': False}))
-    self.assertFalse(eval(expr, {'p': False, 'q': False}))
+    self.assertTrue(evaluate(expr, {'p': True, 'q': False}))
+    self.assertFalse(evaluate(expr, {'p': False, 'q': False}))
 
   def test_not_operator(self):
     expr = Expression(Operator.NOT, (self.p,))
-    self.assertTrue(eval(expr, {'p': False}))
-    self.assertFalse(eval(expr, {'p': True}))
+    self.assertTrue(evaluate(expr, {'p': False}))
+    self.assertFalse(evaluate(expr, {'p': True}))
 
   def test_implies_operator(self):
     expr = Expression(Operator.IMPLIES, (self.p, self.q))
-    self.assertTrue(eval(expr, {'p': False, 'q': False}))
-    self.assertTrue(eval(expr, {'p': False, 'q': True}))
-    self.assertFalse(eval(expr, {'p': True, 'q': False}))
-    self.assertTrue(eval(expr, {'p': True, 'q': True}))
+    self.assertTrue(evaluate(expr, {'p': False, 'q': False}))
+    self.assertTrue(evaluate(expr, {'p': False, 'q': True}))
+    self.assertFalse(evaluate(expr, {'p': True, 'q': False}))
+    self.assertTrue(evaluate(expr, {'p': True, 'q': True}))
 
   def test_complex_expression(self):
     expr = Expression(
@@ -183,8 +183,8 @@ class TestLogicSystem(unittest.TestCase):
         Expression(Operator.IMPLIES, (self.q, self.r)),
       ),
     )
-    self.assertTrue(eval(expr, {'p': True, 'q': True, 'r': False}))
-    self.assertFalse(eval(expr, {'p': False, 'q': True, 'r': False}))
+    self.assertTrue(evaluate(expr, {'p': True, 'q': True, 'r': False}))
+    self.assertFalse(evaluate(expr, {'p': False, 'q': True, 'r': False}))
 
   def test_get_variables(self):
     expr = Expression(
@@ -221,7 +221,7 @@ class TestLogicSystem(unittest.TestCase):
       variables = set.union(*(get_variables(f) for f in formulas))
       for values in product([True, False], repeat=len(variables)):
         substitutions = dict(zip(variables, values))
-        if all(eval(f, substitutions) for f in formulas):
+        if all(evaluate(f, substitutions) for f in formulas):
           return True
       return False
 
@@ -241,14 +241,14 @@ class TestLogicSystem(unittest.TestCase):
     all_true = {'p' + str(i): True for i in range(1, 1001)}
 
     self.assertTrue(
-      all(eval(f, all_true) for f in large_subset),
+      all(evaluate(f, all_true) for f in large_subset),
       'All formulas should be true when all pi are true',
     )
 
     any_false = {'p' + str(i): i != 1 for i in range(1, 1001)}
 
     self.assertFalse(
-      all(eval(f, any_false) for f in large_subset),
+      all(evaluate(f, any_false) for f in large_subset),
       'Not all formulas can be true if any pi is false',
     )
 
