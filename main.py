@@ -227,14 +227,14 @@ class TestLogicSystem(unittest.TestCase):
 
     # Test finite subsets (should all be satisfiable)
     for n in range(1, 10):  # Test subsets of size 1 to 9
-      subset = [Proposition(f'p1')] + [generate_formula(i) for i in range(1, n)]
+      subset = [Proposition('p1')] + [generate_formula(i) for i in range(1, n)]
       self.assertTrue(
         is_satisfiable(subset), f'Subset of size {n} should be satisfiable'
       )
 
     # Demonstrate that we can't find a model that satisfies all formulas simultaneously
     # (In a real implementation, we can't actually test the infinite case)
-    large_subset = [Proposition(f'p1')] + [
+    large_subset = [Proposition('p1')] + [
       generate_formula(i) for i in range(1, 1000)
     ]
 
