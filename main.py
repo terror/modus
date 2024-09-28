@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from enum import Enum
 from itertools import product
 
+from tabulate import tabulate
+
 
 class Operator(Enum):
   AND = 'and'
@@ -17,7 +19,7 @@ class Proposition:
   value: t.Union[str, bool]
 
   def __repr__(self) -> str:
-    return f'Proposition({self.value})'
+    return str(self.value)
 
 
 @dataclass
@@ -26,7 +28,16 @@ class Expression:
   operands: t.Tuple[t.Union['Expression', Proposition], ...]
 
   def __repr__(self):
-    return f"LogicalExpression({self.operator.value}, {', '.join(map(str, self.operands))})"
+    if self.operator == Operator.NOT:
+      return f'¬{self.operands[0]}'
+    elif self.operator == Operator.AND:
+      return f'({self.operands[0]} ∧ {self.operands[1]})'
+    elif self.operator == Operator.OR:
+      return f'({self.operands[0]} ∨ {self.operands[1]})'
+    elif self.operator == Operator.IMPLIES:
+      return f'({self.operands[0]} → {self.operands[1]})'
+    else:
+      return f"Unknown({', '.join(map(str, self.operands))})"
 
 
 def eval(
@@ -80,20 +91,54 @@ def is_semantic_consequence(
   return True
 
 
-def generate_truth_table(expr: t.Union[Proposition, Expression]):
+def generate_truth_table(expr: t.Union[Proposition, Expression]) -> str:
+  """
+  Generates a truth table for a given logical expression.
+
+  The table rows are ordered to correspond to binary counting from 0 to 1
+  for the input variables.
+
+  Args:
+      expr (Union[Proposition, Expression]): The logical expression to generate a truth table for.
+
+  Returns:
+      str: A string representation of the truth table.
+  """
   variables = sorted(get_variables(expr))
+  subexpressions = get_subexpressions(expr)
 
-  header = ' | '.join(variables + ['Result'])
-  print(header)
-  print('-' * len(header))
+  headers = variables + [str(subexpr) for subexpr in subexpressions]
 
-  for values in product([True, False], repeat=len(variables)):
+  rows = []
+
+  for values in product([False, True], repeat=len(variables)):
     substitutions = dict(zip(variables, values))
-    result = eval(expr, substitutions)
-    row = ' | '.join(
-      [str(int(substitutions[var])) for var in variables] + [str(int(result))]
-    )
-    print(row)
+
+    row = [int(substitutions[var]) for var in variables]
+
+    for subexpr in subexpressions:
+      result = eval(subexpr, substitutions)
+      row.append(int(result))
+
+    rows.append(row)
+
+  return tabulate(rows, headers=headers, tablefmt='grid')
+
+
+def get_subexpressions(
+  expr: t.Union[Proposition, Expression],
+) -> t.List[t.Union[Proposition, Expression]]:
+  if isinstance(expr, Proposition):
+    return [expr]
+
+  subexprs = []
+
+  for operand in expr.operands:
+    subexprs.extend(get_subexpressions(operand))
+
+  subexprs.append(expr)
+
+  return subexprs
 
 
 class TestLogicSystem(unittest.TestCase):
@@ -206,6 +251,67 @@ class TestLogicSystem(unittest.TestCase):
       all(eval(f, any_false) for f in large_subset),
       'Not all formulas can be true if any pi is false',
     )
+
+  def test_truth_table_with_intermediate_results(self):
+    expr = Expression(
+      Operator.IMPLIES, (Expression(Operator.IMPLIES, (self.p, self.q)), self.r)
+    )
+
+    table = generate_truth_table(expr)
+
+    # Split the table into lines
+    lines = table.strip().split('\n')
+
+    # Check the header
+    self.assertIn('p', lines[1])
+    self.assertIn('q', lines[1])
+    self.assertIn('r', lines[1])
+    self.assertIn('(p → q)', lines[1])
+    self.assertIn('((p → q) → r)', lines[1])
+
+    content_lines = list(
+      filter(
+        lambda x: len({'-', '+', '(', ')'}.intersection(set(x))) == 0, lines
+      )
+    )
+
+    expected_content = [
+      ['0', '0', '0', '0', '0', '1', '0', '0'],
+      ['0', '0', '1', '0', '0', '1', '1', '1'],
+      ['0', '1', '0', '0', '1', '1', '0', '0'],
+      ['0', '1', '1', '0', '1', '1', '1', '1'],
+      ['1', '0', '0', '1', '0', '0', '0', '1'],
+      ['1', '0', '1', '1', '0', '0', '1', '1'],
+      ['1', '1', '0', '1', '1', '1', '0', '0'],
+      ['1', '1', '1', '1', '1', '1', '1', '1'],
+    ]
+
+    for expected, actual in zip(expected_content, content_lines):
+      self.assertEqual(
+        expected, [cell.strip() for cell in actual.split('|') if cell.strip()]
+      )
+
+  def test_repr(self):
+    p = Proposition('p')
+    q = Proposition('q')
+    r = Proposition('r')
+
+    expr1 = Expression(Operator.AND, (p, q))
+    self.assertEqual(repr(expr1), '(p ∧ q)')
+
+    expr2 = Expression(Operator.OR, (p, q))
+    self.assertEqual(repr(expr2), '(p ∨ q)')
+
+    expr3 = Expression(Operator.NOT, (p,))
+    self.assertEqual(repr(expr3), '¬p')
+
+    expr4 = Expression(Operator.IMPLIES, (p, q))
+    self.assertEqual(repr(expr4), '(p → q)')
+
+    complex_expr = Expression(
+      Operator.IMPLIES, (Expression(Operator.AND, (p, q)), r)
+    )
+    self.assertEqual(repr(complex_expr), '((p ∧ q) → r)')
 
 
 if __name__ == '__main__':
