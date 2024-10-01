@@ -13,4 +13,7 @@ lint:
   ruff check
 
 run:
-  uv run main.py
+  uv run logic.py
+
+test:
+  uv run pytest

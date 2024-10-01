@@ -7,7 +7,6 @@ requires-python = ">=3.12"
 dependencies = [
     "ruff>=0.6.8",
     "tabulate>=0.9.0",
-    "tool>=0.8.0",
 ]
 
 [tool.ruff]
@@ -18,3 +17,8 @@ line-length = 80
 docstring-code-format = true
 indent-style = "space"
 quote-style = "single"
+
+[tool.uv]
+dev-dependencies = [
+    "pytest>=8.3.3",
+]
