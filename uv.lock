@@ -20,8 +20,8 @@ wheels = [
 ]
 
 [[package]]
-name = "logic"
-version = "0.1.0"
+name = "modus"
+version = "0.0.0"
 source = { virtual = "." }
 dependencies = [
     { name = "ruff" },

@@ -1,1 +1,1 @@
-**logic** is a simple Python program for simulating a logical deduction system.
+**modus** is a simple Python program for simulating a natural deduction system.

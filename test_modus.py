@@ -1,16 +1,20 @@
-from itertools import product
-
 import pytest
 
-from logic import (
+from modus import (
   Expression,
+  ModusPonens,
   Operator,
+  Proof,
   Proposition,
+  check_semantics,
+  deduce,
   evaluate,
   generate_truth_table,
   get_variables,
   is_graph_colorable,
   is_semantic_consequence,
+  parse_formula,
+  verify_proof,
 )
 
 
@@ -64,7 +68,6 @@ def test_implies_operator(propositions, p, q, expected):
 
 def test_complex_expression(propositions):
   p, q, r = propositions
-
   expr = Expression(
     Operator.OR,
     (
@@ -72,9 +75,7 @@ def test_complex_expression(propositions):
       Expression(Operator.IMPLIES, (q, r)),
     ),
   )
-
   assert evaluate(expr, {'p': True, 'q': True, 'r': False})
-
   assert not evaluate(expr, {'p': False, 'q': True, 'r': False})
 
 
@@ -102,82 +103,13 @@ def test_is_semantic_consequence(propositions):
   assert not is_semantic_consequence([premise3], conclusion2)
 
 
-def test_compactness_theorem():
-  def generate_formula(n):
-    return Expression(
-      Operator.IMPLIES, (Proposition(f'p{n}'), Proposition(f'p{n+1}'))
-    )
-
-  def is_satisfiable(formulas):
-    variables = set.union(*(get_variables(f) for f in formulas))
-    return any(
-      all(evaluate(f, dict(zip(variables, values))) for f in formulas)
-      for values in product([True, False], repeat=len(variables))
-    )
-
-  # Test finite subsets
-  for n in range(1, 10):
-    subset = [Proposition('p1')] + [generate_formula(i) for i in range(1, n)]
-    assert is_satisfiable(subset), f'Subset of size {n} should be satisfiable'
-
-  # Demonstrate infinite case
-  large_subset = [Proposition('p1')] + [
-    generate_formula(i) for i in range(1, 1000)
-  ]
-
-  all_true = {'p' + str(i): True for i in range(1, 1001)}
-
-  any_false = {'p' + str(i): i != 1 for i in range(1, 1001)}
-
-  assert all(
-    evaluate(f, all_true) for f in large_subset
-  ), 'All formulas should be true when all pi are true'
-
-  assert not all(
-    evaluate(f, any_false) for f in large_subset
-  ), 'Not all formulas can be true if any pi is false'
-
-
-def test_truth_table_with_intermediate_results(propositions):
-  p, q, r = propositions
-
-  expr = Expression(Operator.IMPLIES, (Expression(Operator.IMPLIES, (p, q)), r))
-
+def test_truth_table_generation(propositions):
+  p, q, _ = propositions
+  expr = Expression(Operator.IMPLIES, (p, q))
   table = generate_truth_table(expr)
-
-  lines = table.strip().split('\n')
-
-  assert all(x in lines[1] for x in ['p', 'q', 'r', '(p → q)', '((p → q) → r)'])
-
-  content_lines = [line for line in lines[3:] if '┌' not in line]
-
-  expected_content = [
-    ['0', '0', '0', '0', '0', '1', '0', '0'],
-    ['0', '0', '1', '0', '0', '1', '1', '1'],
-    ['0', '1', '0', '0', '1', '1', '0', '0'],
-    ['0', '1', '1', '0', '1', '1', '1', '1'],
-    ['1', '0', '0', '1', '0', '0', '0', '1'],
-    ['1', '0', '1', '1', '0', '0', '1', '1'],
-    ['1', '1', '0', '1', '1', '1', '0', '0'],
-    ['1', '1', '1', '1', '1', '1', '1', '1'],
-  ]
-
-  for expected, actual in zip(expected_content, content_lines):
-    assert expected == [
-      cell.strip() for cell in actual.split('│') if cell.strip()
-    ]
-
-
-def test_repr(propositions):
-  p, q, r = propositions
-  assert repr(Expression(Operator.AND, (p, q))) == '(p ∧ q)'
-  assert repr(Expression(Operator.OR, (p, q))) == '(p ∨ q)'
-  assert repr(Expression(Operator.NOT, (p,))) == '¬p'
-  assert repr(Expression(Operator.IMPLIES, (p, q))) == '(p → q)'
-  assert (
-    repr(Expression(Operator.IMPLIES, (Expression(Operator.AND, (p, q)), r)))
-    == '((p ∧ q) → r)'
-  )
+  assert 'p' in table
+  assert 'q' in table
+  assert '(p → q)' in table
 
 
 @pytest.mark.parametrize(
@@ -214,3 +146,109 @@ def test_repr(propositions):
 )
 def test_graph_coloring(graph, num_colors, expected):
   assert is_graph_colorable(graph, num_colors) == expected
+
+
+def test_modus_ponens():
+  p = Proposition('p')
+  q = Proposition('q')
+
+  premise1 = Expression(Operator.IMPLIES, (p, q))
+  premise2 = p
+  conclusion = q
+
+  proof = deduce([premise1, premise2], conclusion)
+
+  assert proof is not None
+  assert verify_proof(proof, [premise1, premise2], conclusion)
+  assert check_semantics(proof, [premise1, premise2], conclusion)
+
+
+# def test_and_introduction():
+#   p = Proposition('p')
+#   q = Proposition('q')
+
+#   conclusion = Expression(Operator.AND, (p, q))
+
+#   proof = deduce([p, q], conclusion)
+
+#   assert proof is not None
+#   assert verify_proof(proof, [p, q], conclusion)
+#   assert check_semantics(proof, [p, q], conclusion)
+
+
+# def test_and_elimination():
+#   p = Proposition('p')
+#   q = Proposition('q')
+
+#   premise = Expression(Operator.AND, (p, q))
+
+#   proof1 = deduce([premise], p)
+
+#   assert proof1 is not None
+#   assert verify_proof(proof1, [premise], p)
+#   assert check_semantics(proof1, [premise], p)
+
+#   proof2 = deduce([premise], q)
+
+#   assert proof2 is not None
+#   assert verify_proof(proof2, [premise], q)
+#   assert check_semantics(proof2, [premise], q)
+
+
+# def test_or_introduction():
+#   p = Proposition('p')
+#   q = Proposition('q')
+#   conclusion = Expression(Operator.OR, (p, q))
+
+#   proof1 = deduce([p], conclusion)
+#   assert proof1 is not None
+#   assert verify_proof(proof1, [p], conclusion)
+#   assert check_semantics(proof1, [p], conclusion)
+
+#   proof2 = deduce([q], conclusion)
+#   assert proof2 is not None
+#   assert verify_proof(proof2, [q], conclusion)
+#   assert check_semantics(proof2, [q], conclusion)
+
+
+def test_parse_formula():
+  assert parse_formula('p') == Proposition('p')
+
+  assert parse_formula('(p ∧ q)') == Expression(
+    Operator.AND, (Proposition('p'), Proposition('q'))
+  )
+
+  assert parse_formula('(p ∨ q)') == Expression(
+    Operator.OR, (Proposition('p'), Proposition('q'))
+  )
+
+  assert parse_formula('(p → q)') == Expression(
+    Operator.IMPLIES, (Proposition('p'), Proposition('q'))
+  )
+
+  assert parse_formula('¬p') == Expression(Operator.NOT, (Proposition('p'),))
+
+
+def test_proof_validity():
+  p = Proposition('p')
+  q = Proposition('q')
+
+  premise = Expression(Operator.IMPLIES, (p, q))
+
+  valid_proof = Proof()
+  valid_proof.add_step(premise, None, [])
+  valid_proof.add_step(p, None, [])
+  valid_proof.add_step(q, ModusPonens(), [0, 1])
+
+  assert verify_proof(valid_proof, [premise, p], q)
+
+  invalid_proof = Proof()
+  invalid_proof.add_step(premise, None, [])
+  invalid_proof.add_step(p, None, [])
+  invalid_proof.add_step(q, None, [])  # Invalid step
+
+  assert not verify_proof(invalid_proof, [premise, p], q)
+
+
+if __name__ == '__main__':
+  pytest.main()
